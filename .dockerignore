@@ -1,0 +1,10 @@
+vendor
+node_modules
+.git
+.vscode
+storage/logs
+bootstrap/cache/*
+!bootstrap/cache/.gitignore
+*.log
+.env
+tests

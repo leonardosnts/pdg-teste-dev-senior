@@ -1,0 +1,157 @@
+###
+# PROBLEMA 2: Resumo de Expedições com N+1
+# Endpoint: GET /expeditions/summary
+# Resultado esperado: número de queries cresce conforme mais relatórios são adicionados
+GET http://localhost:8090/api/expeditions/summary?region=Tristan%20Ridge
+
+###
+# AUXILIAR: Adicionar novo relatório de expedição
+# Use este endpoint para adicionar mais relatórios e tornar o problema N+1 mais evidente
+POST http://localhost:8090/api/expeditions
+Content-Type: application/json
+
+{
+    "lab_alias": "pelagic-lab",
+    "expedition_code": "XP-2001",
+    "region": "Tristan Ridge",
+    "anomaly_score": 88,
+    "metadata": {
+        "sampling_window": "2025-09-15"
+    },
+    "observations": [
+        {
+            "instrument": "CTD-X12",
+            "summary": "Temperature gradient analysis",
+            "sample_count": 15
+        },
+        {
+            "instrument": "ADCP-Y44",
+            "summary": "Current velocity profiling",
+            "sample_count": 12
+        },
+        {
+            "instrument": "LISST-Z89",
+            "summary": "Particle concentration scan",
+            "sample_count": 18
+        }
+    ]
+}
+
+###
+# PROBLEMA 1: Ingestão Massiva de Amostras
+# Endpoint: POST /marine-labs/ingest-samples
+# Resultado esperado: requisições extremamente lentas ou com timeout
+POST http://localhost:8090/api/marine-labs/ingest-samples
+Content-Type: application/json
+
+{
+    "lab_alias": "pelagic-lab",
+    "batches": 4,
+    "iterations": 200000,
+    "particle_count": 1400,
+    "depth_start": 10,
+    "temperature": 11.8
+}
+
+###
+# PROBLEMA 3: Registro de Calibrações - Cache não invalidado
+# Endpoint: POST /calibrations
+# CASO 1: Execute este primeiro
+# Resultado esperado: dados retornados permanecem ligados à primeira calibração registrada
+POST http://localhost:8090/api/calibrations
+Content-Type: application/json
+
+{
+    "marine_lab_id": 1,
+    "instrument": "lisst-deep",
+    "drift_ppm": 4.911,
+    "validated_at": "2025-10-01T12:00:00Z",
+    "payload": {
+        "operator": "JP-32",
+        "notes": "Recalibração após tempestade"
+    }
+}
+
+###
+# PROBLEMA 3: Registro de Calibrações - Cache não invalidado
+# CASO 2: Execute este depois do CASO 1
+# Observe que os valores retornados são os mesmos do CASO 1
+POST http://localhost:8090/api/calibrations
+Content-Type: application/json
+
+{
+    "marine_lab_id": 1,
+    "instrument": "lisst-deep",
+    "drift_ppm": 4.990,
+    "validated_at": "2025-10-02T12:00:00Z",
+    "payload": {
+        "operator": "JP-40",
+        "notes": "Recalibração após tempestade"
+    }
+}
+
+###
+# PROBLEMA 4: Avaliação de Risco Salino - Binding inexistente
+# Endpoint: POST /salinity/assess
+# Resultado esperado: erro 500 relatando dependência não resolvida
+POST http://localhost:8090/api/salinity/assess
+Content-Type: application/json
+
+{
+    "lab_alias": "pelagic-lab",
+    "coordinates": [
+        { "lat": -37.92, "lng": -11.44 },
+        { "lat": -38.1, "lng": -11.6 },
+        { "lat": -38.35, "lng": -11.88 }
+    ]
+}
+
+###
+# PROBLEMA 5: Telemetria com Normalização Duplicada
+# Endpoint: POST /telemetry/acoustic
+# Resultado esperado: pequenas divergências nas regras de normalização
+POST http://localhost:8090/api/telemetry/acoustic
+Content-Type: application/json
+
+{
+    "lab_alias": "pelagic-lab",
+    "beacon_id": "AC-5541",
+    "signal_strength": -119.27,
+    "battery_percent": 47.3,
+    "captured_at": "2025-10-20T18:31:00Z"
+}
+
+###
+# PROBLEMA 5: Telemetria com Normalização Duplicada
+# Endpoint: POST /telemetry/optical
+# Resultado esperado: pequenas divergências nas regras de normalização (compare com acústico)
+POST http://localhost:8090/api/telemetry/optical
+Content-Type: application/json
+
+{
+    "lab_alias": "pelagic-lab",
+    "camera_id": "OP-8821",
+    "clarity_index": 2.71828,
+    "battery_percent": 47.3,
+    "captured_at": "2025-10-20T18:31:00Z"
+}
+
+###
+# PROBLEMA 6: Disparo de Alertas sem Adapter
+# Endpoint: POST /alerts/dispatch
+# Resultado esperado: canais não mapeados caem em fallback e são descartados
+POST http://localhost:8090/api/alerts/dispatch
+Content-Type: application/json
+
+{
+    "lab_alias": "pelagic-lab",
+    "event_type": "SATELLITE_DRIFT",
+    "payload": {
+        "summary": "Deriva crítica detectada",
+        "details": {
+            "sector": "Tristan Ridge",
+            "threshold": 3.6
+        }
+    },
+    "triggered_at": "2025-10-20T17:45:00Z"
+}
