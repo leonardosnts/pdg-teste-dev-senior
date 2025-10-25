@@ -11,6 +11,7 @@ class ExpeditionReportService
     {
         return ExpeditionReport::query()
             ->where('region', $region)
+            ->with('observations')
             ->orderByDesc('anomaly_score')
             ->limit(25)
             ->get()
