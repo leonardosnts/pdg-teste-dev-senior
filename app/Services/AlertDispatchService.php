@@ -10,6 +10,22 @@ use Illuminate\Support\Str;
 
 class AlertDispatchService
 {
+    protected array $adapters = [];
+
+    public function __construct()
+    {
+        $this->adapters = [
+            'email' => fn($channel, $event) => $this->sendEmail($channel, $event),
+            'sms' => fn($channel, $event) => $this->sendSms($channel, $event),
+            'satellite' => fn($channel, $event) => $this->sendSatellite($channel, $event),
+        ];
+    }
+
+    public function registerAdapter(string $channelType, callable $handler): void
+    {
+        $this->adapters[strtolower($channelType)] = $handler;
+    }
+
     public function dispatch(MarineLab $lab, AlertEvent $event): Collection
     {
         return $lab->alertChannels->map(fn(AlertChannel $channel) => $this->sendViaChannel($channel, $event));
@@ -19,12 +35,12 @@ class AlertDispatchService
     {
         $channelType = Str::lower($channel->channel);
 
-        return match ($channelType) {
-            'email' => $this->sendEmail($channel, $event),
-            'sms' => $this->sendSms($channel, $event),
-            'satellite' => $this->sendSatellite($channel, $event),
-            default => $this->sendFallback($channel, $event),
-        };
+        $adapter = $this->adapters[$channelType] ?? fn($channel, $event) => $this->sendFallback($channel, $event);
+        $result = $adapter($channel, $event);
+        
+        $result['adapter'] = $channelType;
+        
+        return $result;
     }
 
     private function sendEmail(AlertChannel $channel, AlertEvent $event): array
