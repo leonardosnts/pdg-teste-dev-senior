@@ -16,6 +16,8 @@ class CalibrationRegistry
         $instrument = Str::of($payload['instrument'])->upper();
         $key = sprintf('marine-lab:%s:instrument:%s:calibration', $payload['marine_lab_id'], $instrument);
 
+        $this->cache->forget($key);
+
         $cached = $this->cache->rememberForever($key, function () use ($payload, $instrument) {
             return [
                 'instrument' => (string) $instrument,
