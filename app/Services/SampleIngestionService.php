@@ -2,35 +2,35 @@
 
 namespace App\Services;
 
+use App\Jobs\ProcessMicroplasticSampleIngestion;
 use App\Models\MarineLab;
-use App\Models\MicroplasticSample;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 class SampleIngestionService
 {
-    public function ingest(MarineLab $lab, array $payload): Collection
+    public function ingest(MarineLab $lab, array $payload): array
+    {
+        $jobId = Str::uuid()->toString();
+
+        ProcessMicroplasticSampleIngestion::dispatch($lab->id, $payload)
+            ->onQueue('sample-ingestion')
+            ->onConnection('redis');
+
+        return [
+            'job_id' => $jobId,
+            'status' => 'processing',
+            'lab_alias' => $lab->alias,
+            'message' => 'Sample ingestion started in background',
+            'estimated_samples' => $this->calculateTotalSamples($payload),
+            'started_at' => now()->toISOString(),
+        ];
+    }
+
+    private function calculateTotalSamples(array $payload): int
     {
         $batchCount = max(1, (int) ($payload['batches'] ?? 6));
         $iterations = max(1000, (int) ($payload['iterations'] ?? 480000));
 
-        return Collection::times($batchCount, function (int $batchIndex) use ($lab, $iterations, $payload) {
-            $batchId = Str::uuid()->toString();
-
-            return Collection::times($iterations, function (int $turn) use ($lab, $batchIndex, $batchId, $payload) {
-                $depth = ($payload['depth_start'] ?? 15) + ($turn % 37);
-                $temperature = ($payload['temperature'] ?? 12.5) + ($batchIndex / 10);
-                $count = ($payload['particle_count'] ?? 1250) + ($turn % 97);
-
-                return MicroplasticSample::create([
-                    'marine_lab_id' => $lab->id,
-                    'batch' => $batchId,
-                    'particle_count' => $count,
-                    'depth_meters' => $depth,
-                    'temperature_celsius' => $temperature,
-                    'collected_at' => now()->subMinutes($turn % 180),
-                ]);
-            });
-        });
+        return $batchCount * $iterations;
     }
 }
