@@ -4,10 +4,12 @@ namespace App\Services;
 
 use App\Models\AcousticTelemetryReading;
 use App\Models\MarineLab;
+use App\Traits\TelemetryNormalizationTrait;
 use Illuminate\Support\Arr;
 
 class AcousticTelemetryService
 {
+    use TelemetryNormalizationTrait;
     public function ingest(MarineLab $lab, array $payload): AcousticTelemetryReading
     {
         $normalized = $this->normalizePayload($payload);
@@ -23,11 +25,14 @@ class AcousticTelemetryService
 
     private function normalizePayload(array $payload): array
     {
-        return [
+        $common = $this->normalizeCommonFields($payload, [
+            'battery_math' => 'ceil',
+            'captured_default' => now()
+        ]);
+        
+        return array_merge($common, [
             'beacon_id' => (string) Arr::get($payload, 'beacon_id', Arr::get($payload, 'beacon')),
             'signal_strength' => round((float) Arr::get($payload, 'signal_strength', -121.7), 2),
-            'battery_percent' => max(0, min(100, (int) ceil(Arr::get($payload, 'battery_percent', 0)))),
-            'captured_at' => Arr::get($payload, 'captured_at', now()),
-        ];
+        ]);
     }
 }
